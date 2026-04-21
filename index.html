@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GuestOS 1.0.0 Desktop</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --glass: rgba(255, 255, 255, 0.15);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --accent: #3b82f6;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+        }
+
+        #desktop {
+            width: 100vw;
+            height: 100vh;
+            background-size: cover;
+            background-position: center;
+            position: relative;
+            background-image: url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=2072');
+            transition: background-image 0.5s ease-in-out;
+        }
+
+        .window {
+            position: absolute;
+            min-width: 300px;
+            min-height: 200px;
+            background: rgba(20, 20, 20, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 10;
+        }
+
+        .window-header {
+            padding: 10px 15px;
+            background: rgba(255, 255, 255, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: move;
+            user-select: none;
+        }
+
+        .window-content {
+            flex-grow: 1;
+            overflow: auto;
+            color: #eee;
+            padding: 15px;
+        }
+
+        .taskbar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 50px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(20px);
+            display: flex;
+            align-items: center;
+            padding: 0 15px;
+            z-index: 1000;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .start-btn {
+            width: 40px;
+            height: 40px;
+            background: var(--accent);
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .start-btn:hover { transform: scale(1.05); }
+
+        .start-menu {
+            position: absolute;
+            bottom: 60px;
+            left: 10px;
+            width: 320px;
+            background: rgba(15, 15, 15, 0.95);
+            backdrop-filter: blur(25px);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 20px;
+            display: none;
+            z-index: 1001;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.6);
+        }
+
+        .app-icon {
+            width: 70px;
+            text-align: center;
+            margin: 15px;
+            cursor: pointer;
+            transition: 0.2s;
+            position: absolute;
+        }
+
+        .app-icon:hover { transform: scale(1.1); }
+        .app-icon i { font-size: 36px; margin-bottom: 8px; display: block; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        .app-icon span { font-size: 12px; color: white; font-weight: 500; }
+
+        .terminal-line { font-family: 'Courier New', Courier, monospace; margin-bottom: 5px; }
+        .terminal-prompt { color: #4ade80; font-weight: bold; }
+
+        .loading-screen {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            color: white;
+            transition: opacity 0.8s ease;
+        }
+
+        .progress-bar {
+            width: 200px;
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            width: 0%;
+            height: 100%;
+            background: var(--accent);
+            transition: width 2s linear;
+        }
+
+        @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
+        .booting-text { animation: pulse 1.5s infinite; font-size: 14px; letter-spacing: 2px; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div id="loading" class="loading-screen">
+    <div class="text-4xl font-bold mb-2">Guest<span class="text-blue-500">OS</span></div>
+    <div class="booting-text uppercase">Initializing Desktop 1.0.0</div>
+    <div class="progress-bar">
+        <div id="progress" class="progress-fill"></div>
+    </div>
+</div>
+
+<div id="desktop">
+    <!-- Desktop Icons -->
+    <div class="app-icon" style="top: 20px; left: 20px;" onclick="openApp('explorer')">
+        <i class="fa-solid fa-folder-open text-yellow-400"></i>
+        <span>Files</span>
+    </div>
+    <div class="app-icon" style="top: 120px; left: 20px;" onclick="openApp('chat')">
+        <i class="fa-solid fa-robot text-purple-400"></i>
+        <span>AI Chat</span>
+    </div>
+    <div class="app-icon" style="top: 220px; left: 20px;" onclick="openApp('monitor')">
+        <i class="fa-solid fa-chart-line text-green-400"></i>
+        <span>Monitor</span>
+    </div>
+    <div class="app-icon" style="top: 320px; left: 20px;" onclick="openApp('terminal')">
+        <i class="fa-solid fa-terminal text-gray-300"></i>
+        <span>Terminal</span>
+    </div>
+
+    <!-- Windows will be injected here -->
+
+    <!-- Start Menu -->
+    <div id="startMenu" class="start-menu">
+        <div class="flex items-center space-x-4 mb-6 border-b border-white/10 pb-4">
+            <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center">G</div>
+            <div>
+                <div class="text-white font-bold">Guest User</div>
+                <div class="text-xs text-gray-400">GuestOS 1.0.0 Pro</div>
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+            <button onclick="openApp('explorer')" class="flex items-center p-2 hover:bg-white/10 rounded transition">
+                <i class="fa-solid fa-folder text-yellow-400 mr-3"></i> Files
+            </button>
+            <button onclick="openApp('chat')" class="flex items-center p-2 hover:bg-white/10 rounded transition">
+                <i class="fa-solid fa-robot text-purple-400 mr-3"></i> AI Chat
+            </button>
+            <button onclick="openApp('terminal')" class="flex items-center p-2 hover:bg-white/10 rounded transition">
+                <i class="fa-solid fa-terminal text-gray-300 mr-3"></i> Terminal
+            </button>
+            <button onclick="openApp('monitor')" class="flex items-center p-2 hover:bg-white/10 rounded transition">
+                <i class="fa-solid fa-chart-line text-green-400 mr-3"></i> Monitor
+            </button>
+            <button onclick="openApp('settings')" class="flex items-center p-2 hover:bg-white/10 rounded transition">
+                <i class="fa-solid fa-gear text-blue-400 mr-3"></i> Settings
+            </button>
+            <button onclick="location.reload()" class="flex items-center p-2 hover:bg-white/10 rounded transition">
+                <i class="fa-solid fa-power-off text-red-500 mr-3"></i> Restart
+            </button>
+        </div>
+    </div>
+
+    <!-- Taskbar -->
+    <div class="taskbar">
+        <div class="start-btn" onclick="toggleStartMenu()">
+            <i class="fa-solid fa-border-all text-white text-xl"></i>
+        </div>
+        <div id="taskbarApps" class="flex-grow flex items-center px-4 space-x-2">
+            <!-- Open apps appear here -->
+        </div>
+        <div class="flex items-center space-x-4 text-white/80 text-sm font-medium">
+            <i class="fa-solid fa-wifi"></i>
+            <i class="fa-solid fa-volume-high"></i>
+            <div id="clock">00:00 AM</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // System State
+    const apps = {
+        explorer: { title: 'File Explorer', icon: 'fa-folder-open', color: 'text-yellow-400' },
+        chat: { title: 'AI Guest Chat', icon: 'fa-robot', color: 'text-purple-400' },
+        monitor: { title: 'System Monitor', icon: 'fa-chart-line', color: 'text-green-400' },
+        terminal: { title: 'Terminal', icon: 'fa-terminal', color: 'text-gray-300' },
+        settings: { title: 'Settings', icon: 'fa-gear', color: 'text-blue-400' }
+    };
+
+    let zIndexCounter = 100;
+    const openWindows = {};
+
+    // Booting Sequence
+    window.onload = () => {
+        const fill = document.getElementById('progress');
+        fill.style.width = '100%';
+        
+        setTimeout(() => {
+            document.getElementById('loading').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('loading').style.display = 'none';
+            }, 800);
+        }, 2200);
+
+        setInterval(updateClock, 1000);
+        updateClock();
+    };
+
+    function updateClock() {
+        const now = new Date();
+        document.getElementById('clock').innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function toggleStartMenu() {
+        const menu = document.getElementById('startMenu');
+        menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+    }
+
+    // App Management
+    function openApp(appKey) {
+        if (openWindows[appKey]) {
+            focusWindow(appKey);
+            return;
+        }
+
+        const appData = apps[appKey];
+        const win = document.createElement('div');
+        win.id = `win-${appKey}`;
+        win.className = 'window';
+        win.style.width = '600px';
+        win.style.height = '400px';
+        win.style.left = `${50 + (Object.keys(openWindows).length * 30)}px`;
+        win.style.top = `${50 + (Object.keys(openWindows).length * 30)}px`;
+        win.style.zIndex = ++zIndexCounter;
+
+        win.innerHTML = `
+            <div class="window-header" onmousedown="dragWindow(event, '${appKey}')">
+                <div class="flex items-center">
+                    <i class="fa-solid ${appData.icon} ${appData.color} mr-2"></i>
+                    <span class="text-sm font-bold text-white/90">${appData.title}</span>
+                </div>
+                <div class="flex space-x-3">
+                    <div class="w-3 h-3 bg-yellow-500 rounded-full cursor-pointer hover:opacity-80"></div>
+                    <div class="w-3 h-3 bg-green-500 rounded-full cursor-pointer hover:opacity-80"></div>
+                    <div class="w-3 h-3 bg-red-500 rounded-full cursor-pointer hover:opacity-80" onclick="closeApp('${appKey}')"></div>
+                </div>
+            </div>
+            <div id="content-${appKey}" class="window-content">
+                ${getAppContent(appKey)}
+            </div>
+        `;
+
+        document.getElementById('desktop').appendChild(win);
+        openWindows[appKey] = win;
+        
+        // Add to taskbar
+        const taskIcon = document.createElement('div');
+        taskIcon.id = `task-${appKey}`;
+        taskIcon.className = 'w-10 h-10 flex items-center justify-center rounded hover:bg-white/10 cursor-pointer border-b-2 border-blue-500 bg-white/5';
+        taskIcon.innerHTML = `<i class="fa-solid ${appData.icon} ${appData.color} text-xl"></i>`;
+        taskIcon.onclick = () => focusWindow(appKey);
+        document.getElementById('taskbarApps').appendChild(taskIcon);
+        
+        if (document.getElementById('startMenu').style.display === 'block') toggleStartMenu();
+
+        // Initialize App Logic
+        if (appKey === 'monitor') initMonitor();
+        if (appKey === 'terminal') initTerminal();
+    }
+
+    function closeApp(appKey) {
+        document.getElementById(`win-${appKey}`).remove();
+        document.getElementById(`task-${appKey}`).remove();
+        delete openWindows[appKey];
+    }
+
+    function focusWindow(appKey) {
+        const win = openWindows[appKey];
+        if (win) {
+            win.style.zIndex = ++zIndexCounter;
+        }
+    }
+
+    function getAppContent(appKey) {
+        switch(appKey) {
+            case 'explorer':
+                return `
+                    <div class="flex items-center bg-black/30 p-2 rounded mb-4">
+                        <i class="fa-solid fa-arrow-left mr-4 opacity-50"></i>
+                        <i class="fa-solid fa-arrow-right mr-4 opacity-50"></i>
+                        <div class="bg-black/20 px-3 py-1 rounded text-xs flex-grow border border-white/10">C:\\Users\\Guest\\Documents</div>
+                    </div>
+                    <div class="grid grid-cols-4 gap-4">
+                        <div class="text-center p-2 hover:bg-white/5 rounded cursor-pointer group">
+                            <i class="fa-solid fa-folder text-blue-400 text-4xl block mb-1"></i>
+                            <span class="text-xs">Projects</span>
+                        </div>
+                        <div class="text-center p-2 hover:bg-white/5 rounded cursor-pointer group">
+                            <i class="fa-solid fa-folder text-blue-400 text-4xl block mb-1"></i>
+                            <span class="text-xs">Pictures</span>
+                        </div>
+                        <div class="text-center p-2 hover:bg-white/5 rounded cursor-pointer group">
+                            <i class="fa-solid fa-file-lines text-gray-400 text-4xl block mb-1"></i>
+                            <span class="text-xs">ReadMe.txt</span>
+                        </div>
+                    </div>
+                `;
+            case 'chat':
+                return `
+                    <div class="flex flex-col h-full">
+                        <div id="chat-box" class="flex-grow space-y-4 mb-4 overflow-y-auto">
+                            <div class="bg-blue-600/20 p-3 rounded-lg border border-blue-500/30 text-sm">
+                                <strong>System:</strong> Welcome to GuestOS AI. How can I assist you with your virtual workspace today?
+                            </div>
+                        </div>
+                        <div class="flex space-x-2">
+                            <input type="text" id="chat-input" placeholder="Type a message..." class="flex-grow bg-black/40 border border-white/20 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-blue-500">
+                            <button onclick="sendChatMessage()" class="bg-blue-600 px-4 py-2 rounded-lg hover:bg-blue-500"><i class="fa-solid fa-paper-plane"></i></button>
+                        </div>
+                    </div>
+                `;
+            case 'monitor':
+                return `
+                    <div class="space-y-6">
+                        <div>
+                            <div class="flex justify-between text-xs mb-1 uppercase tracking-wider text-gray-400"><span>CPU Load</span><span id="cpu-val">12%</span></div>
+                            <div class="w-full bg-white/10 h-2 rounded-full overflow-hidden">
+                                <div id="cpu-bar" class="bg-blue-500 h-full transition-all duration-500" style="width: 12%"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs mb-1 uppercase tracking-wider text-gray-400"><span>Memory Usage</span><span id="mem-val">4.2 GB</span></div>
+                            <div class="w-full bg-white/10 h-2 rounded-full overflow-hidden">
+                                <div id="mem-bar" class="bg-purple-500 h-full transition-all duration-500" style="width: 35%"></div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-white/5 p-4 rounded-lg border border-white/10">
+                                <div class="text-xs text-gray-400 mb-1">Active Processes</div>
+                                <div class="text-2xl font-bold">142</div>
+                            </div>
+                            <div class="bg-white/5 p-4 rounded-lg border border-white/10">
+                                <div class="text-xs text-gray-400 mb-1">Uptime</div>
+                                <div id="uptime" class="text-2xl font-bold">00:04:12</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            case 'terminal':
+                return `
+                    <div id="terminal-out" class="h-64 overflow-y-auto mb-2 text-sm font-mono">
+                        <div class="text-gray-500 italic">GuestOS Kernel 1.0.0 (x64) initialized.</div>
+                        <div class="text-gray-500 mb-2">Type 'help' for available commands.</div>
+                    </div>
+                    <div class="flex font-mono text-sm">
+                        <span class="text-green-400 mr-2">guest@guestos:~$</span>
+                        <input type="text" id="term-input" class="bg-transparent border-none outline-none flex-grow text-white" autofocus>
+                    </div>
+                `;
+            case 'settings':
+                return `
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-bold border-b border-white/10 pb-2">Appearance</h3>
+                        <div>
+                            <label class="text-xs text-gray-400 block mb-2">Wallpaper</label>
+                            <div class="flex space-x-3">
+                                <div onclick="setWallpaper('space')" class="w-20 h-12 rounded border-2 border-transparent hover:border-blue-500 cursor-pointer bg-cover" style="background-image: url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=200')"></div>
+                                <div onclick="setWallpaper('nature')" class="w-20 h-12 rounded border-2 border-transparent hover:border-blue-500 cursor-pointer bg-cover" style="background-image: url('https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=200')"></div>
+                                <div onclick="setWallpaper('minimal')" class="w-20 h-12 rounded border-2 border-transparent hover:border-blue-500 cursor-pointer bg-cover" style="background-image: url('https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=200')"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-400 block mb-2">Accent Color</label>
+                            <div class="flex space-x-2">
+                                <div class="w-6 h-6 rounded-full bg-blue-500 cursor-pointer"></div>
+                                <div class="w-6 h-6 rounded-full bg-purple-500 cursor-pointer"></div>
+                                <div class="w-6 h-6 rounded-full bg-green-500 cursor-pointer"></div>
+                                <div class="w-6 h-6 rounded-full bg-red-500 cursor-pointer"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+        }
+    }
+
+    // App Logics
+    function setWallpaper(type) {
+        const urls = {
+            space: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=2072',
+            nature: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&q=80&w=2074',
+            minimal: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&q=80&w=2074'
+        };
+        document.getElementById('desktop').style.backgroundImage = `url('${urls[type]}')`;
+    }
+
+    function initMonitor() {
+        const update = () => {
+            if (!openWindows.monitor) return;
+            const cpu = Math.floor(Math.random() * 40) + 5;
+            const mem = (Math.random() * 2 + 4).toFixed(1);
+            const memPerc = (mem / 16) * 100;
+            
+            document.getElementById('cpu-val').innerText = `${cpu}%`;
+            document.getElementById('cpu-bar').style.width = `${cpu}%`;
+            document.getElementById('mem-val').innerText = `${mem} GB`;
+            document.getElementById('mem-bar').style.width = `${memPerc}%`;
+            
+            setTimeout(update, 2000);
+        };
+        update();
+    }
+
+    function initTerminal() {
+        const input = document.getElementById('term-input');
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                const cmd = input.value.trim().toLowerCase();
+                const out = document.getElementById('terminal-out');
+                
+                out.innerHTML += `<div class="terminal-line"><span class="terminal-prompt">guest@guestos:~$</span> ${input.value}</div>`;
+                
+                let response = "";
+                switch(cmd) {
+                    case 'help': response = "Available: help, clear, version, neofetch, whoami, ls"; break;
+                    case 'clear': out.innerHTML = ""; response = ""; break;
+                    case 'version': response = "GuestOS Desktop Environment v1.0.0-stable"; break;
+                    case 'whoami': response = "guest_user"; break;
+                    case 'ls': response = "Documents/  Pictures/  Projects/  system.core"; break;
+                    case 'neofetch': 
+                        response = `<pre class="text-blue-400">
+   _____                _ 
+  / ____|              | |
+ | |  __ _   _  ___ ___| |_
+ | | |_ | | | |/ _ / __| __|
+ | |__| | |_| |  __\\__ \\ |_ 
+  \\_____|\\__,_|\\___|___/\\__| OS: GuestOS 1.0.0
+                            Kernel: 5.15.0-generic
+                            Uptime: 12 minutes
+                            Shell: bash
+                            CPU: Virtual Intel i7
+                            Memory: 4.2GB / 16GB
+</pre>`;
+                        break;
+                    default: if(cmd) response = `Command not found: ${cmd}`;
+                }
+                
+                if (response) out.innerHTML += `<div class="terminal-line text-gray-300">${response}</div>`;
+                out.scrollTop = out.scrollHeight;
+                input.value = "";
+            }
+        }
+    }
+
+    function sendChatMessage() {
+        const input = document.getElementById('chat-input');
+        const box = document.getElementById('chat-box');
+        const msg = input.value.trim();
+        if (!msg) return;
+
+        box.innerHTML += `<div class="bg-white/5 p-3 rounded-lg text-sm self-end text-right border border-white/5"><strong>You:</strong> ${msg}</div>`;
+        input.value = "";
+        
+        setTimeout(() => {
+            box.innerHTML += `<div class="bg-blue-600/20 p-3 rounded-lg border border-blue-500/30 text-sm"><strong>System:</strong> Analyzing request... Accessing virtual memory... This feature is simulated in 1.0.0.</div>`;
+            box.scrollTop = box.scrollHeight;
+        }, 800);
+    }
+
+    // Drag Logic
+    let isDragging = false;
+    let currentWin = null;
+    let offsetX, offsetY;
+
+    function dragWindow(e, appKey) {
+        isDragging = true;
+        currentWin = openWindows[appKey];
+        offsetX = e.clientX - currentWin.offsetLeft;
+        offsetY = e.clientY - currentWin.offsetTop;
+        focusWindow(appKey);
+        
+        document.onmousemove = (ev) => {
+            if (!isDragging) return;
+            currentWin.style.left = `${ev.clientX - offsetX}px`;
+            currentWin.style.top = `${ev.clientY - offsetY}px`;
+        };
+        
+        document.onmouseup = () => {
+            isDragging = false;
+            document.onmousemove = null;
+        };
+    }
+</script>
+</body>
+</html>
